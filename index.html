@@ -90,10 +90,17 @@ footer a{color:var(--blue2)}
 "use strict";
 /* ============ الإعدادات (قراءة فقط من Firebase) ============ */
 const DB = "https://jaziri-s-iptv-default-rtdb.europe-west1.firebasedatabase.app";
+// بعد نشر Cloudflare Worker، ضع رابطه هنا. اتركه فارغاً إلى أن تنشر العامل.
+const HTTPS_PROXY = "";
+function playableUrl(url){
+  if(!HTTPS_PROXY || !/^http:\/\//i.test(url)) return url;
+  const base = HTTPS_PROXY.endsWith("/") ? HTTPS_PROXY : HTTPS_PROXY + "/";
+  return base + "?url=" + encodeURIComponent(url);
+}
 /* ====== إعدادات AdSense: ضع معرّف الناشر ومعرّف وحدة الإعلان بعد قبول حسابك ====== */
 const ADS = {client:"ca-pub-XXXXXXXXXXXXXXXX", slot:"XXXXXXXXXX", every:3};
 const adsOn = !/X{6,}/.test(ADS.client+ADS.slot);
-const CACHE_KEY = "iptv_cache_v3", CACHE_TTL = 30*60*1000, BATCH = 60, PREVIEW = 20, SEC_BATCH = 5;
+const CACHE_KEY = "iptv_cache_v4", CACHE_TTL = 30*60*1000, BATCH = 60, PREVIEW = 20, SEC_BATCH = 5;
 
 const $ = id => document.getElementById(id);
 const els = {cats:$("cats"),grid:$("grid"),state:$("state"),info:$("info"),search:$("search"),
@@ -125,7 +132,7 @@ const getJSON=path=>getURL(`${DB}/${path}.json`);
 async function getURL(url){
   const path=url.replace(/^.*\//,""), t0=performance.now();
   let r;
-  try{ r=await fetch(url,{cache:"no-store"}); }catch(e){ dbg(`✗ ${path}: فشل الشبكة — ${e.message}`); throw e; }
+  try{ r=await fetch(url); }catch(e){ dbg(`✗ ${path}: فشل الشبكة — ${e.message}`); throw e; }
   dbg(`${path}: HTTP ${r.status} في ${Math.round(performance.now()-t0)}ms`);
   if(!r.ok){ let b=""; try{b=(await r.text()).slice(0,200);}catch(e){} dbg(`✗ ${b}`); throw new Error(`HTTP ${r.status} (${path})`); }
   return r.json();
@@ -138,7 +145,7 @@ function report(rawCats,missing){
   dbg(`— channels_by_category: ${keys.length} صنف | ${keys.reduce((a,k)=>a+S.byCat[k].length,0)} قناة`);
   if(missing.length) dbg(`⚠ ${missing.length} صنف في القنوات بلا تعريف في categories (يظهر باسم «صنف رقم»): ${missing.slice(0,10).join(", ")}`);
   const empty=S.cats.filter(c=>!(S.byCat[c.id]||[]).length).map(c=>c.id);
-  if(empty.length) dbg(`⚠ ${empty.length} صنف بلا قنوات (مخفي في «كل الأصناف»): ${empty.slice(0,10).join(", ")}`);
+  if(empty.length) dbg(`ℹ ${empty.length} صنف بلا قنوات حالياً (يبقى ظاهراً في القائمة): ${empty.slice(0,10).join(", ")}`);
   const k0=keys.find(k=>S.byCat[k].length);
   if(k0){const c=S.byCat[k0][0]; dbg(`عيّنة قناة (صنف ${k0}): الاسم=${c.name} | شعار=${safeUrl(c.logo)} | بث=${safeUrl(c.url)}`);}
   const noUrl=keys.reduce((a,k)=>a+S.byCat[k].filter(c=>!c.url).length,0);
@@ -149,51 +156,38 @@ const str = v => (v==null?"":String(v)).trim();
 /* categories قد تكون كائنًا {id:{...}} أو {id:"اسم"} أو مصفوفة (Firebase يحوّل المفاتيح المتسلسلة لمصفوفة) */
 function normCategories(raw){
   const out=[];
-  if(!raw) return out;
+  if(!raw || typeof raw!=="object") return out;
   const entries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
   for(const [key,v] of entries){
     if(v==null) continue;
-    let id=key, name="";
+    let id=String(key), name="";
     if(typeof v==="object"){
-      id = str(v.category_id ?? v.id ?? v.i ?? key);
+      id = str(v.category_id ?? v.id ?? v.i ?? key) || String(key);
       name = str(v.category_name ?? v.name ?? v.n ?? v.title);
     } else name = str(v);
-    name = name.trim(); // نحافظ على اسم التصنيف كما هو من Firebase
-    out.push({id, name: name || ("صنف "+id)});
+    out.push({id, name:name || ("صنف "+id)});
   }
   return out;
 }
 function normChannels(raw){
-  const map={};
+  const map=Object.create(null);
   if(!raw || typeof raw!=="object") return map;
-  // دعم أكثر من شكل شائع لبيانات Firebase دون إسقاط الفئات أو القنوات.
-  if(raw.channels_by_category && typeof raw.channels_by_category==="object") raw=raw.channels_by_category;
-  const entries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
-  for(const [cid,node] of entries){
-    if(node==null) continue;
-    let chs=node;
-    if(chs && typeof chs==="object" && !Array.isArray(chs)){
-      for(const key of ["channels","items","list","data","streams"]){
-        if(chs[key] && typeof chs[key]==="object"){ chs=chs[key]; break; }
-      }
-    }
-    if(!chs || typeof chs!=="object") continue;
-    const items=Array.isArray(chs)?chs.map((v,i)=>[String(i),v]):Object.entries(chs);
+  const catEntries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
+  for(const [rawId,chs] of catEntries){
+    const cid=str(rawId);
+    if(!cid || chs==null || typeof chs!=="object") continue;
+    const items = Array.isArray(chs) ? chs.map((v,i)=>[String(i),v]) : Object.entries(chs);
     const arr=[];
     for(const [chId,c] of items){
       if(c==null) continue;
-      let name="",logo="",url="";
-      if(typeof c==="string"){
-        // بعض قواعد البيانات تحفظ رابط القناة مباشرة كنص.
-        url=str(c); name="قناة "+chId;
-      }else if(typeof c==="object"){
-        name=str(c.n ?? c.name ?? c.title ?? c.channel_name ?? c.label) || ("قناة "+chId);
-        logo=str(c.i ?? c.logo ?? c.image ?? c.icon ?? c.poster);
-        url=str(c.u ?? c.url ?? c.stream_url ?? c.stream ?? c.link ?? c.src);
-      }else continue;
-      arr.push({id:String(chId),name,lname:name.toLowerCase(),logo,url});
+      // ندعم السجلات القديمة والجديدة، وكذلك الرابط المخزن مباشرة كنص.
+      const obj=(typeof c==="object")?c:{};
+      const url=str(typeof c==="string" ? c : (obj.u ?? obj.url ?? obj.stream_url ?? obj.stream ?? obj.link));
+      const name=str(obj.n ?? obj.name ?? obj.title ?? obj.channel_name) || ("قناة "+chId);
+      const logo=str(obj.i ?? obj.logo ?? obj.icon ?? obj.image);
+      arr.push({id:String(chId),name,lname:name.toLocaleLowerCase(),logo,url});
     }
-    map[String(cid)]=arr;
+    map[cid]=arr;
   }
   return map;
 }
@@ -208,30 +202,25 @@ function writeCache(rawCats,rawCh){
 
 async function load(force){
   showState("loading");
-  const cached=readCache();
   try{
-    // جلب أحدث نسخة من Firebase أولاً حتى لا تبقى القائمة ناقصة بسبب cache قديم.
-    const [rawCats,rawCh]=await Promise.all([getJSON("categories"),getJSON("channels_by_category")]);
-    if(!rawCats || !rawCh || typeof rawCats!=="object" || typeof rawCh!=="object")
-      throw new Error("Firebase returned empty or invalid channel data");
-    const parsed=normChannels(rawCh);
-    const total=Object.values(parsed).reduce((n,a)=>n+a.length,0);
-    if(!total) throw new Error("لم تُستخرج أي قناة من بيانات Firebase؛ تم الاحتفاظ بالنسخة السابقة.");
-    writeCache(rawCats,rawCh);
+    // Firebase هو المصدر الأساسي دائماً حتى لا تبقى نسخة cache قديمة أو ناقصة.
+    const [rawCats,rawCh] = await Promise.all([getJSON("categories"),getJSON("channels_by_category")]);
     dbg("المصدر: Firebase (تحديث مباشر)");
     ingest(rawCats,rawCh);
+    writeCache(rawCats,rawCh);
   }catch(e){
-    console.error(e); dbg("✗ تعذّر التحديث المباشر: "+(e&&e.message));
+    console.error(e); dbg("✗ تعذّر جلب Firebase: "+(e&&e.message));
+    const cached=readCache();
     if(cached && cached.cats && cached.ch){
-      dbg("سيتم استخدام آخر نسخة محفوظة بدل إظهار قائمة فارغة.");
+      dbg("⚠ تم استخدام نسخة مؤقتة احتياطية؛ قد تكون أقدم من بيانات Firebase.");
       ingest(cached.cats,cached.ch);
-      toast("تعذّر الاتصال بـ Firebase؛ عُرضت آخر نسخة محفوظة.");
+      toast("تعذّر الاتصال بقاعدة البيانات؛ عُرضت آخر نسخة محفوظة.");
     }else{
-      els.cats.innerHTML="";els.grid.innerHTML="";els.info.textContent="";
-      showState("err","تعذّر تحميل القنوات. تحقق من الاتصال ثم اضغط «تحديث».");
+      showState("err","تعذّر تحميل القنوات من Firebase. تحقق من الاتصال ثم اضغط تحديث.");
     }
   }
 }
+
 function ingest(rawCats,rawCh){
   S.byCat = normChannels(rawCh);
   // لا نحذف أي قناة بسبب بروتوكول رابط البث.
@@ -246,7 +235,7 @@ function ingest(rawCats,rawCh){
   const known = new Set(cats.map(x=>x.id));
   const missing=[];
   for(const id of Object.keys(S.byCat)) if(!known.has(id)){ cats.push({id,name:"صنف "+id}); missing.push(id); }
-  // لا نخفي أي صنف حتى لو كانت قائمته فارغة مؤقتًا أو بياناته لم تُحمّل بالكامل.
+  // لا نخفي أي صنف معرّف في Firebase حتى لو كانت قائمته فارغة مؤقتاً.
   S.cats = cats;
   report(rawCats,missing);
   if(!cats.length){showState("empty","لا توجد أصناف.");els.cats.innerHTML="";els.grid.innerHTML="";return;}
@@ -401,7 +390,7 @@ async function retryStream(generation=playbackGeneration){
 }
 async function startCurrentStream(generation=playbackGeneration){
   if(generation!==playbackGeneration || !els.player.classList.contains("on")) return;
-  const v=els.video,u=curUrl,isHls=/\.m3u8(\?|$)/i.test(u);
+  const v=els.video,u=playableUrl(curUrl),isHls=/\.m3u8(\?|$)/i.test(u);
   if(isHls){
     if(v.canPlayType("application/vnd.apple.mpegurl")){
       v.src=u;v.load();
@@ -440,8 +429,8 @@ async function play(ch){
   playbackGeneration++;const generation=playbackGeneration;
   retryCount=0;retryBusy=false;clearRetry();curUrl=ch.url;
   dbg(`تشغيل: ${ch.name} ← ${safeUrl(ch.url)} | الصفحة: ${location.protocol}`);
-  if(location.protocol==="https:"&&/^http:\/\//i.test(ch.url)){
-    dbg("تنبيه: رابط HTTP داخل صفحة HTTPS؛ Chrome قد يحظره أو يرقّيه إلى HTTPS تلقائيًا.");
+  if(location.protocol==="https:"&&/^http:\/\//i.test(ch.url)&&!HTTPS_PROXY){
+    dbg("تنبيه: هذا رابط HTTP؛ Chrome قد يحظره داخل HTTPS. انشر Cloudflare Worker وضع رابطه في HTTPS_PROXY.");
   }
   els.pname.textContent=ch.name;els.perr.textContent="";
   els.player.classList.add("on");$("pclose").focus();
@@ -502,7 +491,7 @@ function v_error(){
     const e=v.error, code=e&&e.code;
     dbg("video.error: code="+code+" "+(e&&e.message||""));
     if(!active())return;
-    const isHttpOnHttps=location.protocol==="https:"&&/^http:\/\//i.test(curUrl);
+    const isHttpOnHttps=location.protocol==="https:"&&/^http:\/\//i.test(playableUrl(curUrl));
     if(isHttpOnHttps){
       els.perr.textContent="Chrome قد يحظر رابط HTTP داخل صفحة HTTPS. يلزم مصدر HTTPS أو خادم وسيط؛ إعادة المحاولة لن تتجاوز الحظر.";
       return;
@@ -601,4 +590,3 @@ load(false);
 </script>
 </body>
 </html>
-
