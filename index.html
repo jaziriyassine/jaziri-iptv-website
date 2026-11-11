@@ -71,7 +71,7 @@ footer a{color:var(--blue2)}
       <div id="grid"></div>
       <div id="sentinel" style="height:1px"></div>
       <footer>
-        <p>هذا الموقع لا يستضيف أي بث، ويعرض روابط قنوات متاحة مجانًا من أصحابها[cite: 1].</p>
+        <p>هذا الموقع لا يستضيف أي بث، ويعرض روابط قنوات متاحة مجانًا من أصحابها.</p>
         <a href="privacy.html">سياسة الخصوصية</a>
       </footer>
     </section>
@@ -88,9 +88,9 @@ footer a{color:var(--blue2)}
 <script>
 (()=>{
 "use strict";
-/* ============ الإعدادات (قراءة فقط من Firebase) ============[cite: 1] */
+/* ============ الإعدادات (قراءة فقط من Firebase) ============ */
 const DB = "https://jaziri-s-iptv-default-rtdb.europe-west1.firebasedatabase.app";
-/* ====== إعدادات AdSense: ضع معرّف الناشر ومعرّف وحدة الإعلان بعد قبول حسابك ======[cite: 1] */
+/* ====== إعدادات AdSense: ضع معرّف الناشر ومعرّف وحدة الإعلان بعد قبول حسابك ====== */
 const ADS = {client:"ca-pub-XXXXXXXXXXXXXXXX", slot:"XXXXXXXXXX", every:3};
 const adsOn = !/X{6,}/.test(ADS.client+ADS.slot);
 const CACHE_KEY = "iptv_cache_v3", CACHE_TTL = 30*60*1000, BATCH = 60, PREVIEW = 20, SEC_BATCH = 5;
@@ -101,7 +101,7 @@ const els = {cats:$("cats"),grid:$("grid"),state:$("state"),info:$("info"),searc
 
 const S = {cats:[],byCat:{},activeId:null,query:"",list:[],shown:0};
 
-/* ============ الإعلانات ============[cite: 1] */
+/* ============ الإعلانات ============ */
 if(adsOn){const sc=document.createElement("script");sc.async=true;sc.crossOrigin="anonymous";
   sc.src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client="+encodeURIComponent(ADS.client);document.head.appendChild(sc);}
 function makeAd(){
@@ -118,14 +118,14 @@ function initAds(){
 }
 function placeTopAd(){ const t=$("adtop"); if(adsOn&&!t.firstChild){t.appendChild(makeAd());initAds();} }
 
-/* ============ جلب البيانات ============[cite: 1] */
+/* ============ جلب البيانات ============ */
 const dbgLines=[];
 function dbg(m){dbgLines.push(m);console.log("[iptv]",m);const p=document.getElementById("dbg");if(p)p.textContent=dbgLines.join("\n");}
 const getJSON=path=>getURL(`${DB}/${path}.json`);
 async function getURL(url){
   const path=url.replace(/^.*\//,""), t0=performance.now();
   let r;
-  try{ r=await fetch(url); }catch(e){ dbg(`✗ ${path}: فشل الشبكة — ${e.message}`); throw e; }
+  try{ r=await fetch(url,{cache:"no-store"}); }catch(e){ dbg(`✗ ${path}: فشل الشبكة — ${e.message}`); throw e; }
   dbg(`${path}: HTTP ${r.status} في ${Math.round(performance.now()-t0)}ms`);
   if(!r.ok){ let b=""; try{b=(await r.text()).slice(0,200);}catch(e){} dbg(`✗ ${b}`); throw new Error(`HTTP ${r.status} (${path})`); }
   return r.json();
@@ -146,6 +146,7 @@ function report(rawCats,missing){
 }
 const str = v => (v==null?"":String(v)).trim();
 
+/* categories قد تكون كائنًا {id:{...}} أو {id:"اسم"} أو مصفوفة (Firebase يحوّل المفاتيح المتسلسلة لمصفوفة) */
 function normCategories(raw){
   const out=[];
   if(!raw) return out;
@@ -157,25 +158,42 @@ function normCategories(raw){
       id = str(v.category_id ?? v.id ?? v.i ?? key);
       name = str(v.category_name ?? v.name ?? v.n ?? v.title);
     } else name = str(v);
-    name = name.trim();
+    name = name.trim(); // نحافظ على اسم التصنيف كما هو من Firebase
     out.push({id, name: name || ("صنف "+id)});
   }
   return out;
 }
 function normChannels(raw){
   const map={};
-  if(!raw) return map;
-  const catEntries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
-  for(const [cid,chs] of catEntries){
+  if(!raw || typeof raw!=="object") return map;
+  // دعم أكثر من شكل شائع لبيانات Firebase دون إسقاط الفئات أو القنوات.
+  if(raw.channels_by_category && typeof raw.channels_by_category==="object") raw=raw.channels_by_category;
+  const entries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
+  for(const [cid,node] of entries){
+    if(node==null) continue;
+    let chs=node;
+    if(chs && typeof chs==="object" && !Array.isArray(chs)){
+      for(const key of ["channels","items","list","data","streams"]){
+        if(chs[key] && typeof chs[key]==="object"){ chs=chs[key]; break; }
+      }
+    }
     if(!chs || typeof chs!=="object") continue;
-    const items = Array.isArray(chs) ? chs.map((v,i)=>[String(i),v]) : Object.entries(chs);
+    const items=Array.isArray(chs)?chs.map((v,i)=>[String(i),v]):Object.entries(chs);
     const arr=[];
     for(const [chId,c] of items){
-      if(!c || typeof c!=="object") continue;
-      const name = str(c.n) || ("قناة "+chId);
-      arr.push({id:chId, name, lname:name.toLowerCase(), logo:str(c.i), url:str(c.u)});
+      if(c==null) continue;
+      let name="",logo="",url="";
+      if(typeof c==="string"){
+        // بعض قواعد البيانات تحفظ رابط القناة مباشرة كنص.
+        url=str(c); name="قناة "+chId;
+      }else if(typeof c==="object"){
+        name=str(c.n ?? c.name ?? c.title ?? c.channel_name ?? c.label) || ("قناة "+chId);
+        logo=str(c.i ?? c.logo ?? c.image ?? c.icon ?? c.poster);
+        url=str(c.u ?? c.url ?? c.stream_url ?? c.stream ?? c.link ?? c.src);
+      }else continue;
+      arr.push({id:String(chId),name,lname:name.toLowerCase(),logo,url});
     }
-    map[cid]=arr;
+    map[String(cid)]=arr;
   }
   return map;
 }
@@ -185,38 +203,50 @@ function readCache(){
   return null;
 }
 function writeCache(rawCats,rawCh){
-  try{localStorage.setItem(CACHE_KEY,JSON.stringify({t:Date.now(),cats:rawCats,ch:rawCh}));}catch(e){}
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify({t:Date.now(),cats:rawCats,ch:rawCh}));}catch(e){/* الحجم كبير: نتجاهل */}
 }
 
 async function load(force){
   showState("loading");
+  const cached=readCache();
   try{
-    let rawCats, rawCh;
-    const c = !force && readCache();
-    if(c){rawCats=c.cats; rawCh=c.ch; dbg("المصدر: ذاكرة مؤقتة");}
-    else{
-      [rawCats,rawCh] = await Promise.all([getJSON("categories"),getJSON("channels_by_category")]);
-      dbg("المصدر: Firebase"); writeCache(rawCats,rawCh);
-    }
+    // جلب أحدث نسخة من Firebase أولاً حتى لا تبقى القائمة ناقصة بسبب cache قديم.
+    const [rawCats,rawCh]=await Promise.all([getJSON("categories"),getJSON("channels_by_category")]);
+    if(!rawCats || !rawCh || typeof rawCats!=="object" || typeof rawCh!=="object")
+      throw new Error("Firebase returned empty or invalid channel data");
+    const parsed=normChannels(rawCh);
+    const total=Object.values(parsed).reduce((n,a)=>n+a.length,0);
+    if(!total) throw new Error("لم تُستخرج أي قناة من بيانات Firebase؛ تم الاحتفاظ بالنسخة السابقة.");
+    writeCache(rawCats,rawCh);
+    dbg("المصدر: Firebase (تحديث مباشر)");
     ingest(rawCats,rawCh);
   }catch(e){
-    console.error(e); dbg("✗ خطأ: "+(e&&e.message));
-    els.cats.innerHTML="";els.grid.innerHTML="";els.info.textContent="";
-    showState("err","تعذّر تحميل القنوات. تحقق من الاتصال ثم اضغط «تحديث».");
+    console.error(e); dbg("✗ تعذّر التحديث المباشر: "+(e&&e.message));
+    if(cached && cached.cats && cached.ch){
+      dbg("سيتم استخدام آخر نسخة محفوظة بدل إظهار قائمة فارغة.");
+      ingest(cached.cats,cached.ch);
+      toast("تعذّر الاتصال بـ Firebase؛ عُرضت آخر نسخة محفوظة.");
+    }else{
+      els.cats.innerHTML="";els.grid.innerHTML="";els.info.textContent="";
+      showState("err","تعذّر تحميل القنوات. تحقق من الاتصال ثم اضغط «تحديث».");
+    }
   }
 }
 function ingest(rawCats,rawCh){
   S.byCat = normChannels(rawCh);
+  // لا نحذف أي قناة بسبب بروتوكول رابط البث.
+  // قد يمنع المتصفح تشغيل HTTP داخل صفحة HTTPS، لكن القناة تبقى ظاهرة.
   const httpCount = Object.values(S.byCat).reduce(
     (total, channels) => total + channels.filter(ch => /^http:\/\//i.test(ch.url)).length,
     0
   );
   if(httpCount) dbg(`ℹ توجد ${httpCount} قناة برابط HTTP؛ ستبقى ظاهرة وقد يمنع المتصفح تشغيلها داخل HTTPS.`);
   let cats = normCategories(rawCats);
+  // أصناف موجودة في القنوات وغير معرّفة في categories: نعرضها باسم احتياطي
   const known = new Set(cats.map(x=>x.id));
   const missing=[];
   for(const id of Object.keys(S.byCat)) if(!known.has(id)){ cats.push({id,name:"صنف "+id}); missing.push(id); }
-  cats = cats.filter(c=>(S.byCat[c.id]||[]).length);
+  // لا نخفي أي صنف حتى لو كانت قائمته فارغة مؤقتًا أو بياناته لم تُحمّل بالكامل.
   S.cats = cats;
   report(rawCats,missing);
   if(!cats.length){showState("empty","لا توجد أصناف.");els.cats.innerHTML="";els.grid.innerHTML="";return;}
@@ -226,6 +256,7 @@ function ingest(rawCats,rawCh){
   placeTopAd();
 }
 
+/* ============ العرض ============ */
 function showState(kind,msg){
   const s=els.state; s.className=kind==="err"?"err":"";
   if(kind==="hide"){s.style.display="none";s.innerHTML="";return;}
@@ -329,13 +360,14 @@ function makeCard(ch){
     if(sec ? ch.length-Array.prototype.indexOf.call(ch,sec)<=2 : (d.parentNode===els.grid && ch.length-Array.prototype.indexOf.call(ch,d)<=12)) renderMore(); };
   return d;
 }
+// تحميل المزيد عند التمرير
 new IntersectionObserver(e=>{if(e[0].isIntersecting)renderMore();},{rootMargin:"600px"}).observe(els.sentinel);
 
-/* ============ التشغيل ============[cite: 1] */
+/* ============ التشغيل ============ */
 function toast(m){els.toast.textContent=m;els.toast.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>els.toast.style.display="none",2800);}
 let hls=null, mpegts=null, lastFocus=null, curUrl="";
 let retryTimer=null, retryCount=0, playbackGeneration=0, retryBusy=false;
-const RETRY_DELAYS=[500, 1000, 2000, 4000, 8000]; // تعديل أوقات إعادة المحاولة لتصبح أهدأ على السيرفر
+const RETRY_DELAYS=[0,150,300,600,1000,2000];
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
 function clearRetry(){if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}}
 function destroyEngines(){clearRetry();if(hls){hls.destroy();hls=null;}if(mpegts){try{mpegts.destroy();}catch(e){}mpegts=null;}retryBusy=false;}
@@ -353,6 +385,7 @@ async function retryStream(generation=playbackGeneration){
   const v=els.video;
   try{
     if(hls && window.Hls){
+      // استعادة اتصال HLS أولاً، ثم إعادة تحميل المصدر عند استمرار الخطأ.
       if(retryCount<=2){hls.startLoad(-1);}
       else{hls.destroy();hls=null;await startCurrentStream(generation);}
     }else if(mpegts && window.mpegts){
@@ -420,13 +453,12 @@ const mpegts_ok=()=>window.mpegts&&window.mpegts.getFeatureList().mseLivePlaybac
 function mpegts_create(u,v,generation=playbackGeneration){
   const p=window.mpegts.createPlayer({
     type:"mpegts",isLive:true,url:u,
-    enableStashBuffer:true,stashInitialSize:512*1024, // زيادة المخزن المؤقت الأولي لمنع الانقطاع السريع
-    lazyLoad:false,liveBufferLatencyChasing:false,    // إيقاف مطاردة التأخير العدوانية لتفادي الإعادة المستمرة
-    liveBufferLatencyMaxLatency:6,liveBufferLatencyMinRemain:1.5
+    enableStashBuffer:true,stashInitialSize:128*1024,
+    lazyLoad:false,liveBufferLatencyChasing:true,
+    liveBufferLatencyMaxLatency:3,liveBufferLatencyMinRemain:0.5
   });
   p.on(window.mpegts.Events.ERROR,(type,detail,info)=>{
     if(generation!==playbackGeneration)return;
-    if(type === "network" && detail === "NetworkTimeout") return; // تجاهل التايم آوت الشبكي البسيط
     dbg(`mpegts.error: ${type||"?"} / ${detail||"?"} / ${info?JSON.stringify(info):""}`);
     scheduleRetry("MPEG-TS "+(type||"")+" "+(detail||""),generation);
   });
@@ -434,29 +466,76 @@ function mpegts_create(u,v,generation=playbackGeneration){
   return p;
 }
 v_error();
+function hint(type,code){
+  if(code===401||code===403) return `السيرفر رفض الطلب (HTTP ${code}): الاشتراك منتهٍ أو بيانات الدخول مرفوضة أو الحساب محظور.`;
+  if(code===404) return "القناة غير موجودة على السيرفر (HTTP 404).";
+  if(type==="networkError"){
+    const mixed=location.protocol==="https:"&&/^http:/i.test(curUrl);
+    return mixed ? "المتصفح يحظر الرابط (http) داخل صفحة https. شغّل الصفحة من http أو من ملف محلي."
+      : "تعذّر الاتصال بالبث: غالبًا السيرفر لا يسمح للمتصفح (CORS) أو الاشتراك/السيرفر متوقف. جرّب «📋 نسخ الرابط» وافتحه في VLC.";
+  }
+  return "تعذّر تشغيل هذه القناة.";
+}
 function v_error(){
-  els.video.addEventListener("error",()=>{
-    const e=els.video.error;dbg("video.error: code="+(e&&e.code)+" "+(e&&e.message||""));
-    if(els.player.classList.contains("on")){
-      const isHttpOnHttps=location.protocol==="https:"&&/^http:\/\//i.test(curUrl);
-      if(isHttpOnHttps)els.perr.textContent="Chrome قد يحظر رابط HTTP داخل صفحة HTTPS. يلزم مصدر HTTPS أو خادم وسيط؛ إعادة المحاولة وحدها لن تتجاوز الحظر.";
-      else els.perr.textContent="تعذّر تحليل تدفق الفيديو؛ تحقق من صيغة البث أو دعم السيرفر للمتصفح.";
-      scheduleRetry("video error "+(e&&e.code));
-    }
+  const v=els.video;
+  let lastProgressAt=Date.now();
+  let lastTime=-1;
+  let stallTriggered=false;
+  let stableSince=0;
+  const active=()=>els.player.classList.contains("on");
+  const markProgress=()=>{
+    clearRetry();
+    lastProgressAt=Date.now();
+    lastTime=v.currentTime||0;
+    stallTriggered=false;
+    if(!retryTimer) els.perr.textContent="";
+    if(!stableSince) stableSince=Date.now();
+    // صفّر عداد المحاولات فقط بعد استمرار التشغيل بشكل مستقر.
+    if(Date.now()-stableSince>15000) retryCount=0;
+  };
+  ["playing","timeupdate","progress"].forEach(name=>v.addEventListener(name,markProgress));
+  v.addEventListener("waiting",()=>{
+    // الانتظار القصير طبيعي أثناء التخزين المؤقت؛ لا نعيد الاتصال فورًا.
+    if(active()&&!v.paused){lastProgressAt=Date.now();stallTriggered=false;}
   });
-  ["stalled","ended","abort"].forEach(name=>els.video.addEventListener(name,()=>{
-    if(els.player.classList.contains("on"))scheduleRetry("video "+name);
+  v.addEventListener("error",()=>{
+    const e=v.error, code=e&&e.code;
+    dbg("video.error: code="+code+" "+(e&&e.message||""));
+    if(!active())return;
+    const isHttpOnHttps=location.protocol==="https:"&&/^http:\/\//i.test(curUrl);
+    if(isHttpOnHttps){
+      els.perr.textContent="Chrome قد يحظر رابط HTTP داخل صفحة HTTPS. يلزم مصدر HTTPS أو خادم وسيط؛ إعادة المحاولة لن تتجاوز الحظر.";
+      return;
+    }
+    if(code===4){
+      els.perr.textContent="Chrome لم يستطع تحليل صيغة البث (MEDIA_ERR_SRC_NOT_SUPPORTED). إعادة المحاولة بالرابط نفسه غالبًا لن تحل المشكلة؛ تحقق من صيغة MPEG-TS/HLS ودعم السيرفر.";
+      return;
+    }
+    scheduleRetry("video error "+code);
+  });
+  ["stalled","ended","abort"].forEach(name=>v.addEventListener(name,()=>{
+    if(!active()||v.paused)return;
+    // نمنح المتصفح مهلة قصيرة لاستعادة البيانات قبل إعادة الاتصال.
+    if(Date.now()-lastProgressAt>2500&&!stallTriggered){
+      stallTriggered=true;
+      scheduleRetry("video "+name);
+    }
   }));
-  let lastTime=0,stuckSince=0;
+  // مراقبة التقدم فقط؛ لا يوجد reconnect دوري. محاولة واحدة لكل توقف حتى يعود الفيديو للتقدم.
   setInterval(()=>{
-    const v=els.video;
-    if(!els.player.classList.contains("on")||v.paused||v.readyState<2){lastTime=v.currentTime||0;stuckSince=0;return;}
-    if(Math.abs(v.currentTime-lastTime)<0.1){
-      if(!stuckSince)stuckSince=Date.now();
-      else if(Date.now()-stuckSince>5000){stuckSince=Date.now();scheduleRetry("playback stalled");} // رفع المهلة إلى 5 ثوانٍ لتجنب إعادة التشغيل الوهمي
-    }else stuckSince=0;
-    lastTime=v.currentTime;
-  }, 1500); // زيادة الفحص إلى كل 1.5 ثانية بدل 750ms
+    if(!active()||v.paused||v.ended||v.readyState<2){
+      if(!active()||v.paused||v.ended){stableSince=0;stallTriggered=false;}
+      lastTime=v.currentTime||0;
+      return;
+    }
+    const nowTime=v.currentTime||0;
+    if(lastTime>=0&&nowTime>lastTime+0.08){markProgress();}
+    else if(Date.now()-lastProgressAt>=5000&&!stallTriggered){
+      stallTriggered=true;
+      scheduleRetry("no playback progress for 5s");
+    }
+    lastTime=nowTime;
+  },1000);
 }
 function closePlayer(){
   playbackGeneration++;els.player.classList.remove("on");destroyEngines();
@@ -465,11 +544,13 @@ function closePlayer(){
 }
 $("pclose").onclick=closePlayer;
 
+/* ============ البحث والتحديث ============ */
 let st; els.search.addEventListener("input",()=>{clearTimeout(st);st=setTimeout(()=>{S.query=els.search.value.trim();if(S.activeId)applyFilter();},150);});
 $("refresh").onclick=()=>load(true);
 if(/[?&]debug=1/.test(location.search)) $("dbg").classList.add("on");
 els.search.dataset.nav="1"; $("refresh").dataset.nav="1";
 
+/* ============ التنقل بالريموت (D-Pad) ============ */
 const isBack=e=>e.key==="Escape"||e.key==="GoBack"||e.key==="BrowserBack"||e.keyCode===4||e.keyCode===10009||e.keyCode===27;
 function navigate(dir){
   const cur=document.activeElement;
@@ -499,7 +580,7 @@ document.addEventListener("keydown",e=>{
   const typing=document.activeElement===els.search;
   const map={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"};
   if(map[e.key]){
-    if(typing&&(e.key==="ArrowLeft"||e.key==="ArrowRight")) return;
+    if(typing&&(e.key==="ArrowLeft"||e.key==="ArrowRight")) return; // تحريك المؤشر داخل النص
     e.preventDefault(); navigate(map[e.key]); return;
   }
   if(e.key==="Enter"){
