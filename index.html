@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>قنوات تلفزيونية مجانية</title>
+<meta name="description" content="مشاهدة قنوات تلفزيونية مجانية مبثوثة رسميًا على الإنترنت">
+<style>
+:root{--bg:#05070d;--panel:#0b1020;--card:#101830;--blue:#2f7bff;--blue2:#5aa0ff;--text:#e8eefc;--mute:#8b98b8;--err:#ff6b6b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,"Segoe UI",Tahoma,Arial,sans-serif}
+#app{display:flex;flex-direction:column;height:100%}
+header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid #16213f}
+header h1{font-size:18px;margin:0;color:var(--blue2);white-space:nowrap}
+#search{flex:1;min-width:0;background:#0a0f20;border:2px solid #1b2850;color:var(--text);border-radius:12px;padding:10px 14px;font-size:16px;outline:none}
+button{font:inherit;color:var(--text);background:#16213f;border:2px solid transparent;border-radius:12px;padding:9px 14px;cursor:pointer}
+#main{flex:1;display:flex;min-height:0}
+#cats{width:240px;flex:none;overflow-y:auto;background:var(--panel);border-left:1px solid #16213f;padding:8px}
+.cat{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:right;margin-bottom:6px;background:transparent;border-radius:10px}
+.cat .n{color:var(--mute);font-size:13px;flex:none}
+.cat.active{background:linear-gradient(90deg,#10306b,#1a4aa8)}
+#content{flex:1;overflow-y:auto;padding:12px;min-width:0}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 8px;background:var(--card);border:2px solid #16213f;border-radius:14px;text-align:center;min-height:140px}
+.card .logo{width:86px;height:64px;display:flex;align-items:center;justify-content:center}
+.card img{max-width:100%;max-height:100%;object-fit:contain;opacity:0;transition:opacity .25s}
+.card img.ok{opacity:1}
+.card .ph{font-size:30px;color:var(--blue2)}
+.card .nm{font-size:14px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;direction:auto}
+.card.nourl{opacity:.55}
+#grid.all{display:block}
+.sec{margin-bottom:20px}
+.sech{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.sech h2{margin:0;font-size:17px;color:var(--blue2)}
+.sech h2 span{color:var(--mute);font-size:13px;font-weight:normal}
+.row{display:flex;gap:12px;overflow-x:auto;padding:10px 6px 14px}
+.row .card{flex:none;width:150px}
+:is(button,.card,#search):focus,:is(button,.card):focus-visible{outline:none;border-color:#fff;box-shadow:0 0 0 4px var(--blue),0 0 22px 6px rgba(47,123,255,.7);transform:scale(1.04);position:relative;z-index:2}
+#state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:60px 20px;color:var(--mute);text-align:center}
+#state.err{color:var(--err)}
+.spin{width:44px;height:44px;border:4px solid #1b2850;border-top-color:var(--blue);border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+#info{color:var(--mute);font-size:13px;margin:0 2px 10px}
+#player{position:fixed;inset:0;background:#000;display:none;z-index:10}
+#player.on{display:block}
+#player video{width:100%;height:100%;background:#000}
+#ptitle{position:absolute;top:0;inset-inline:0;padding:12px 16px;background:linear-gradient(#000c,transparent);display:flex;gap:10px;align-items:center;justify-content:space-between}
+#perr{position:absolute;bottom:20%;inset-inline:0;text-align:center;color:var(--err);font-size:18px;padding:0 20px}
+#dbg{display:none;position:fixed;bottom:0;left:0;right:0;max-height:50%;overflow:auto;margin:0;background:#000e;color:#9fe;font:12px/1.6 monospace;padding:10px;z-index:30;white-space:pre-wrap;direction:ltr;text-align:left;border-top:2px solid var(--blue)}
+#dbg.on{display:block}
+.ad{display:block;min-height:90px;margin:14px 0;text-align:center;overflow:hidden}
+footer{margin:30px 0 20px;padding-top:14px;border-top:1px solid #16213f;color:var(--mute);font-size:13px;text-align:center}
+footer a{color:var(--blue2)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16213f;border:1px solid var(--blue);padding:10px 18px;border-radius:12px;display:none;z-index:20}
+@media(max-width:700px){#cats{width:130px}#grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}header h1{display:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>📺 قنوات مجانية</h1>
+    <input id="search" type="search" placeholder="ابحث عن قناة..." autocomplete="off" enterkeyhint="search">
+    <button id="refresh" title="تحديث">⟳ تحديث</button>
+  </header>
+  <div id="main">
+    <nav id="cats" aria-label="الأصناف"></nav>
+    <section id="content">
+      <div id="adtop"></div>
+      <div id="info"></div>
+      <div id="state"></div>
+      <div id="grid"></div>
+      <div id="sentinel" style="height:1px"></div>
+      <footer>
+        <p>هذا الموقع لا يستضيف أي بث، ويعرض روابط قنوات متاحة مجانًا من أصحابها.</p>
+        <a href="privacy.html">سياسة الخصوصية</a>
+      </footer>
+    </section>
+  </div>
+</div>
+<div id="player">
+  <video id="video" controls autoplay playsinline></video>
+  <div id="ptitle"><span id="pname"></span><span><button id="pclose">✕ رجوع</button></span></div>
+  <div id="perr"></div>
+</div>
+<pre id="dbg"></pre>
+<div id="toast"></div>
+
+<script>
+(()=>{
+"use strict";
+/* ============ الإعدادات (قراءة فقط من Firebase) ============ */
+const DB = "https://jaziri-s-iptv-default-rtdb.europe-west1.firebasedatabase.app";
+/* ====== إعدادات AdSense: ضع معرّف الناشر ومعرّف وحدة الإعلان بعد قبول حسابك ====== */
+const ADS = {client:"ca-pub-XXXXXXXXXXXXXXXX", slot:"XXXXXXXXXX", every:3};
+const adsOn = !/X{6,}/.test(ADS.client+ADS.slot);
+const CACHE_KEY = "iptv_cache_v3", CACHE_TTL = 30*60*1000, BATCH = 60, PREVIEW = 20, SEC_BATCH = 5;
+
+const $ = id => document.getElementById(id);
+const els = {cats:$("cats"),grid:$("grid"),state:$("state"),info:$("info"),search:$("search"),
+  player:$("player"),video:$("video"),pname:$("pname"),perr:$("perr"),toast:$("toast"),sentinel:$("sentinel")};
+
+const S = {cats:[],byCat:{},activeId:null,query:"",list:[],shown:0};
+
+/* ============ الإعلانات ============ */
+if(adsOn){const sc=document.createElement("script");sc.async=true;sc.crossOrigin="anonymous";
+  sc.src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client="+encodeURIComponent(ADS.client);document.head.appendChild(sc);}
+function makeAd(){
+  const d=document.createElement("div"); d.className="ad"; if(!adsOn) return d;
+  const ins=document.createElement("ins"); ins.className="adsbygoogle"; ins.style.display="block";
+  ins.dataset.adClient=ADS.client; ins.dataset.adSlot=ADS.slot; ins.dataset.adFormat="auto"; ins.dataset.fullWidthResponsive="true";
+  d.appendChild(ins); return d;
+}
+function initAds(){
+  if(!adsOn) return;
+  document.querySelectorAll("ins.adsbygoogle:not([data-ready])").forEach(i=>{
+    i.dataset.ready="1"; try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}
+  });
+}
+function placeTopAd(){ const t=$("adtop"); if(adsOn&&!t.firstChild){t.appendChild(makeAd());initAds();} }
+
+/* ============ جلب البيانات ============ */
+const dbgLines=[];
+function dbg(m){dbgLines.push(m);console.log("[iptv]",m);const p=document.getElementById("dbg");if(p)p.textContent=dbgLines.join("\n");}
+const getJSON=path=>getURL(`${DB}/${path}.json`);
+async function getURL(url){
+  const path=url.replace(/^.*\//,""), t0=performance.now();
+  let r;
+  try{ r=await fetch(url); }catch(e){ dbg(`✗ ${path}: فشل الشبكة — ${e.message}`); throw e; }
+  dbg(`${path}: HTTP ${r.status} في ${Math.round(performance.now()-t0)}ms`);
+  if(!r.ok){ let b=""; try{b=(await r.text()).slice(0,200);}catch(e){} dbg(`✗ ${b}`); throw new Error(`HTTP ${r.status} (${path})`); }
+  return r.json();
+}
+const safeUrl=u=>{try{return new URL(u).origin+"/…";}catch(e){return u?"(رابط غير صالح)":"(فارغ)";}};
+function report(rawCats,missing){
+  dbg(`— categories: ${Array.isArray(rawCats)?"array":typeof rawCats} | ${S.cats.length-missing.length} صنف معرّف`);
+  try{dbg("عيّنة: "+JSON.stringify(Array.isArray(rawCats)?rawCats.slice(0,3):Object.entries(rawCats||{}).slice(0,3)).slice(0,400));}catch(e){}
+  const keys=Object.keys(S.byCat);
+  dbg(`— channels_by_category: ${keys.length} صنف | ${keys.reduce((a,k)=>a+S.byCat[k].length,0)} قناة`);
+  if(missing.length) dbg(`⚠ ${missing.length} صنف في القنوات بلا تعريف في categories (يظهر باسم «صنف رقم»): ${missing.slice(0,10).join(", ")}`);
+  const empty=S.cats.filter(c=>!(S.byCat[c.id]||[]).length).map(c=>c.id);
+  if(empty.length) dbg(`⚠ ${empty.length} صنف بلا قنوات (مخفي في «كل الأصناف»): ${empty.slice(0,10).join(", ")}`);
+  const k0=keys.find(k=>S.byCat[k].length);
+  if(k0){const c=S.byCat[k0][0]; dbg(`عيّنة قناة (صنف ${k0}): الاسم=${c.name} | شعار=${safeUrl(c.logo)} | بث=${safeUrl(c.url)}`);}
+  const noUrl=keys.reduce((a,k)=>a+S.byCat[k].filter(c=>!c.url).length,0);
+  if(noUrl) dbg(`⚠ ${noUrl} قناة بلا رابط بث`);
+}
+const str = v => (v==null?"":String(v)).trim();
+
+/* categories قد تكون كائنًا {id:{...}} أو {id:"اسم"} أو مصفوفة (Firebase يحوّل المفاتيح المتسلسلة لمصفوفة) */
+function normCategories(raw){
+  const out=[];
+  if(!raw) return out;
+  const entries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
+  for(const [key,v] of entries){
+    if(v==null) continue;
+    let id=key, name="";
+    if(typeof v==="object"){
+      id = str(v.category_id ?? v.id ?? v.i ?? key);
+      name = str(v.category_name ?? v.name ?? v.n ?? v.title);
+    } else name = str(v);
+    name = name.trim(); // نحافظ على اسم التصنيف كما هو من Firebase
+    out.push({id, name: name || ("صنف "+id)});
+  }
+  return out;
+}
+function normChannels(raw){
+  const map={};
+  if(!raw) return map;
+  const catEntries = Array.isArray(raw) ? raw.map((v,i)=>[String(i),v]) : Object.entries(raw);
+  for(const [cid,chs] of catEntries){
+    if(!chs || typeof chs!=="object") continue;
+    const items = Array.isArray(chs) ? chs.map((v,i)=>[String(i),v]) : Object.entries(chs);
+    const arr=[];
+    for(const [chId,c] of items){
+      if(!c || typeof c!=="object") continue;
+      const name = str(c.n) || ("قناة "+chId);
+      arr.push({id:chId, name, lname:name.toLowerCase(), logo:str(c.i), url:str(c.u)});
+    }
+    map[cid]=arr;
+  }
+  return map;
+}
+
+function readCache(){
+  try{const c=JSON.parse(localStorage.getItem(CACHE_KEY)); if(c&&Date.now()-c.t<CACHE_TTL) return c;}catch(e){}
+  return null;
+}
+function writeCache(rawCats,rawCh){
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify({t:Date.now(),cats:rawCats,ch:rawCh}));}catch(e){/* الحجم كبير: نتجاهل */}
+}
+
+async function load(force){
+  showState("loading");
+  try{
+    let rawCats, rawCh;
+    const c = !force && readCache();
+    if(c){rawCats=c.cats; rawCh=c.ch; dbg("المصدر: ذاكرة مؤقتة");}
+    else{
+      [rawCats,rawCh] = await Promise.all([getJSON("categories"),getJSON("channels_by_category")]);
+      dbg("المصدر: Firebase"); writeCache(rawCats,rawCh);
+    }
+    ingest(rawCats,rawCh);
+  }catch(e){
+    console.error(e); dbg("✗ خطأ: "+(e&&e.message));
+    els.cats.innerHTML="";els.grid.innerHTML="";els.info.textContent="";
+    showState("err","تعذّر تحميل القنوات. تحقق من الاتصال ثم اضغط «تحديث».");
+  }
+}
+function ingest(rawCats,rawCh){
+  S.byCat = normChannels(rawCh);
+  // لا نحذف أي قناة بسبب بروتوكول رابط البث.
+  // قد يمنع المتصفح تشغيل HTTP داخل صفحة HTTPS، لكن القناة تبقى ظاهرة.
+  const httpCount = Object.values(S.byCat).reduce(
+    (total, channels) => total + channels.filter(ch => /^http:\/\//i.test(ch.url)).length,
+    0
+  );
+  if(httpCount) dbg(`ℹ توجد ${httpCount} قناة برابط HTTP؛ ستبقى ظاهرة وقد يمنع المتصفح تشغيلها داخل HTTPS.`);
+  let cats = normCategories(rawCats);
+  // أصناف موجودة في القنوات وغير معرّفة في categories: نعرضها باسم احتياطي
+  const known = new Set(cats.map(x=>x.id));
+  const missing=[];
+  for(const id of Object.keys(S.byCat)) if(!known.has(id)){ cats.push({id,name:"صنف "+id}); missing.push(id); }
+  cats = cats.filter(c=>(S.byCat[c.id]||[]).length);
+  S.cats = cats;
+  report(rawCats,missing);
+  if(!cats.length){showState("empty","لا توجد أصناف.");els.cats.innerHTML="";els.grid.innerHTML="";return;}
+  renderCats();
+  const keep = S.activeId && S.cats.some(x=>x.id===S.activeId);
+  selectCat(keep||S.activeId==="all"?S.activeId:"all", true);
+  placeTopAd();
+}
+
+/* ============ العرض ============ */
+function showState(kind,msg){
+  const s=els.state; s.className=kind==="err"?"err":"";
+  if(kind==="hide"){s.style.display="none";s.innerHTML="";return;}
+  s.style.display="flex";
+  if(kind==="loading") s.innerHTML='<div class="spin"></div><div>جارٍ تحميل القنوات...</div>';
+  else s.textContent=msg;
+}
+function renderCats(){
+  els.cats.innerHTML="";
+  const f=document.createDocumentFragment();
+  for(const c of [{id:"all",name:"كل الأصناف"},...S.cats]){
+    const b=document.createElement("button");
+    b.className="cat"; b.dataset.id=c.id; b.dataset.nav="1";
+    const n=c.id==="all"?Object.values(S.byCat).reduce((a,x)=>a+x.length,0):(S.byCat[c.id]||[]).length;
+    b.innerHTML=`<span class="t"></span><span class="n">${n}</span>`;
+    b.firstChild.textContent=c.name;
+    b.onclick=()=>selectCat(c.id);
+    f.appendChild(b);
+  }
+  els.cats.appendChild(f);
+}
+function selectCat(id,silent){
+  S.activeId=id;
+  els.cats.querySelectorAll(".cat").forEach(b=>b.classList.toggle("active",b.dataset.id===id));
+  applyFilter();
+}
+function applyFilter(){
+  if(S.activeId==="all") return applyAll();
+  els.grid.classList.remove("all");
+  const all=S.byCat[S.activeId]||[];
+  const q=S.query.toLowerCase();
+  S.list = q ? all.filter(c=>c.lname.includes(q)) : all;
+  S.shown=0; els.grid.innerHTML=""; els.content_scroll_reset();
+  const cat=S.cats.find(c=>c.id===S.activeId);
+  els.info.textContent = `${cat?cat.name:""} — ${S.list.length}${q?` من ${all.length}`:""} قناة`;
+  if(!S.list.length){showState("empty", q?"لا توجد نتائج مطابقة للبحث.":"لا توجد قنوات في هذا الصنف.");return;}
+  showState("hide");
+  renderMore();
+}
+els.content_scroll_reset=()=>{$("content").scrollTop=0;};
+
+function applyAll(){
+  const q=S.query.toLowerCase(); S.sections=[]; let total=0;
+  for(const c of S.cats){
+    const all=S.byCat[c.id]||[], items=q?all.filter(x=>x.lname.includes(q)):all;
+    if(items.length){S.sections.push({cat:c,items});total+=items.length;}
+  }
+  S.shown=0; S.list=[]; els.grid.innerHTML=""; els.grid.classList.add("all"); $("content").scrollTop=0;
+  els.info.textContent=`${S.sections.length} صنف — ${total} قناة`;
+  if(!S.sections.length){showState("empty",q?"لا توجد نتائج مطابقة للبحث.":"لا توجد قنوات.");return;}
+  showState("hide"); renderMore();
+}
+function makeSection(sec){
+  const d=document.createElement("div"); d.className="sec";
+  const h=document.createElement("div"); h.className="sech";
+  const t=document.createElement("h2"); t.textContent=sec.cat.name+" ";
+  const sp=document.createElement("span"); sp.textContent=`(${sec.items.length})`; t.appendChild(sp);
+  const b=document.createElement("button"); b.textContent="عرض الكل ‹"; b.dataset.nav="1";
+  b.onclick=()=>selectCat(sec.cat.id);
+  h.append(t,b);
+  const row=document.createElement("div"); row.className="row";
+  const lim=Math.min(sec.items.length,PREVIEW);
+  for(let i=0;i<lim;i++) row.appendChild(makeCard(sec.items[i]));
+  d.append(h,row); return d;
+}
+function renderMore(){
+  if(S.activeId==="all"){
+    if(!S.sections||S.shown>=S.sections.length) return;
+    const end=Math.min(S.shown+SEC_BATCH,S.sections.length), f=document.createDocumentFragment();
+    for(let i=S.shown;i<end;i++){ f.appendChild(makeSection(S.sections[i])); if(adsOn&&(i+1)%ADS.every===0) f.appendChild(makeAd()); }
+    S.shown=end; els.grid.appendChild(f); initAds(); return;
+  }
+  if(S.shown>=S.list.length) return;
+  const end=Math.min(S.shown+BATCH,S.list.length), f=document.createDocumentFragment();
+  for(let i=S.shown;i<end;i++) f.appendChild(makeCard(S.list[i]));
+  S.shown=end; els.grid.appendChild(f);
+}
+const imgObs = "IntersectionObserver" in window ? new IntersectionObserver(es=>{
+  for(const e of es) if(e.isIntersecting){loadImg(e.target);imgObs.unobserve(e.target);}
+},{root:null,rootMargin:"200px"}) : null;
+
+function loadImg(box){
+  const src=box.dataset.src; if(!src) return;
+  const img=new Image(); img.decoding="async"; img.alt="";
+  img.onload=()=>{img.classList.add("ok");};
+  img.onerror=()=>{box.innerHTML='<span class="ph">📺</span>';};
+  img.referrerPolicy="no-referrer";
+  box.textContent=""; box.appendChild(img); img.src=src;
+}
+function makeCard(ch){
+  const d=document.createElement("div");
+  d.className="card"+(ch.url?"":" nourl"); d.tabIndex=0; d.dataset.nav="1"; d.setAttribute("role","button");
+  const logo=document.createElement("div"); logo.className="logo";
+  if(ch.logo){logo.dataset.src=ch.logo; logo.innerHTML='<span class="ph">📺</span>'; imgObs?imgObs.observe(logo):loadImg(logo);}
+  else logo.innerHTML='<span class="ph">📺</span>';
+  const nm=document.createElement("div"); nm.className="nm"; nm.textContent=ch.name;
+  d.append(logo,nm);
+  d.onclick=()=>play(ch);
+  d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();play(ch);}};
+  d.onfocus=()=>{ const sec=d.closest(".sec"), ch=els.grid.children;
+    if(sec ? ch.length-Array.prototype.indexOf.call(ch,sec)<=2 : (d.parentNode===els.grid && ch.length-Array.prototype.indexOf.call(ch,d)<=12)) renderMore(); };
+  return d;
+}
+// تحميل المزيد عند التمرير
+new IntersectionObserver(e=>{if(e[0].isIntersecting)renderMore();},{rootMargin:"600px"}).observe(els.sentinel);
+/* ============ التشغيل (مع إعادة اتصال تلقائية عند الانقطاع) ============ */
+function toast(m){els.toast.textContent=m;els.toast.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>els.toast.style.display="none",2800);}
+let hls=null, mpegts=null, lastFocus=null, curUrl="";
+let curCh=null, sid=0, retry=0, rTimer=null, wdog=null, lastT=-1, lastMove=0, mediaRecAt=0;
+const RETRY_DELAYS=[300,1000,2000,4000,8000]; // أول محاولة شبه فورية ثم تباعد تدريجي
+const HARD_MAX=5;      // أخطاء 401/403/404: نحاول 5 مرات فقط
+const STALL_MS=8000;   // تجمّد الصورة أكثر من 8 ثوانٍ = انقطاع
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+function destroyEngines(){ if(hls){hls.destroy();hls=null;} if(mpegts){try{mpegts.destroy();}catch(e){}mpegts=null;} }
+const playerOn=()=>els.player.classList.contains("on");
+
+function stopWatch(){ clearTimeout(rTimer); rTimer=null; clearInterval(wdog); wdog=null; }
+function startWatch(){
+  clearInterval(wdog); lastT=-1; lastMove=Date.now();
+  wdog=setInterval(()=>{
+    if(!playerOn()||rTimer) return;
+    const v=els.video;
+    if(v.paused&&!v.ended) { lastMove=Date.now(); return; } // المستخدم أوقفه يدويًا
+    if(v.currentTime!==lastT){ lastT=v.currentTime; lastMove=Date.now(); return; }
+    if(Date.now()-lastMove>STALL_MS){ dbg("watchdog: تجمّد البث"); reconnect("stall"); }
+  },2000);
+}
+function reconnect(reason,code){
+  if(!playerOn()||!curCh||rTimer) return;
+  const hard=code===401||code===403||code===404;
+  if(hard&&retry>=HARD_MAX){ stopWatch(); els.perr.textContent=hint("networkError",code); return; }
+  const d=RETRY_DELAYS[Math.min(retry,RETRY_DELAYS.length-1)];
+  retry++;
+  dbg(`إعادة اتصال #${retry} بعد ${d}ms (${reason}${code?" / HTTP "+code:""})`);
+  els.perr.textContent=`انقطع البث — جارٍ إعادة الاتصال (محاولة ${retry})...`;
+  rTimer=setTimeout(()=>{rTimer=null; if(playerOn()) startStream();},d);
+}
+
+async function startStream(){
+  const my=++sid, ch=curCh, v=els.video, u=ch.url;
+  destroyEngines(); v.removeAttribute("src"); v.load();
+  try{
+    const isHls=/\.m3u8(\?|$)/i.test(u);
+    if(isHls){
+      if(v.canPlayType("application/vnd.apple.mpegurl")){ v.src=u; }
+      else{
+        if(!window.Hls) await loadScript("https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js");
+        if(my!==sid||!playerOn()) return;
+        hls=new Hls({manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:2});
+        hls.loadSource(u); hls.attachMedia(v);
+        hls.on(Hls.Events.ERROR,(_,d)=>{
+          if(my!==sid) return;
+          const code=d.response&&d.response.code;
+          dbg(`hls: ${d.type} / ${d.details}${code?" / HTTP "+code:""}${d.fatal?" (قاتل)":""}`);
+          if(!d.fatal) return;
+          if(d.type===Hls.ErrorTypes.MEDIA_ERROR && Date.now()-mediaRecAt>5000){ mediaRecAt=Date.now(); hls.recoverMediaError(); return; }
+          reconnect(d.type,code);
+        });
+      }
+    }else if(/\.(mp4|webm)(\?|$)/i.test(u)){ v.src=u; }
+    else{ // روابط Xtream بدون امتداد = MPEG-TS
+      if(!window.mpegts) await loadScript("https://cdn.jsdelivr.net/npm/mpegts.js@1/dist/mpegts.min.js");
+      if(my!==sid||!playerOn()) return;
+      if(mpegts_ok()){ mpegts=mpegts_create(u,v,my); }
+      else v.src=u;
+    }
+    v.play().catch(()=>{});
+  }catch(e){ if(my===sid) reconnect("load-failed"); }
+}
+
+async function play(ch){
+  if(!ch.url){toast("لا يوجد رابط بث لهذه القناة.");return;}
+  // إذا كان في مشروعك مشغّل موجود، عرّف window.IPTV_PLAY = (url, name, channel) => {...} وسيُستخدم بدل المشغّل المدمج.
+  if(typeof window.IPTV_PLAY==="function"){ window.IPTV_PLAY(ch.url,ch.name,ch); return; }
+  lastFocus=document.activeElement;
+  curUrl=ch.url; curCh=ch; retry=0; stopWatch();
+  dbg(`تشغيل: ${ch.name} ← ${safeUrl(ch.url)} | الصفحة: ${location.protocol}`);
+  els.pname.textContent=ch.name; els.perr.textContent="";
+  els.player.classList.add("on"); $("pclose").focus();
+  startWatch(); startStream();
+}
+const mpegts_ok=()=>window.mpegts&&window.mpegts.getFeatureList().mseLivePlayback;
+function mpegts_create(u,v,my){const p=window.mpegts.createPlayer({type:"mpegts",isLive:true,url:u});p.attachMediaElement(v);p.load();
+  const E=window.mpegts.Events;
+  p.on(E.ERROR,(t,d,info)=>{ if(my!==sid) return; dbg(`mpegts: ${t}/${d}`); reconnect("mpegts",info&&info.code); });
+  p.on(E.LOADING_COMPLETE,()=>{ if(my===sid){ dbg("mpegts: أُغلق الاتصال من السيرفر"); reconnect("closed"); } });
+  return p;}
+function hint(type,code){
+  if(code===401||code===403) return `السيرفر رفض الطلب (HTTP ${code}): الاشتراك منتهٍ أو بيانات الدخول مرفوضة أو الحساب محظور.`;
+  if(code===404) return "القناة غير موجودة على السيرفر (HTTP 404).";
+  if(type==="networkError"){
+    const mixed=location.protocol==="https:"&&/^http:/i.test(curUrl);
+    return mixed ? "المتصفح يحظر الرابط (http) داخل صفحة https. شغّل الصفحة من http أو من ملف محلي."
+      : "تعذّر الاتصال بالبث: غالبًا السيرفر لا يسمح للمتصفح (CORS) أو الاشتراك/السيرفر متوقف. جرّب «📋 نسخ الرابط» وافتحه في VLC.";
+  }
+  return "تعذّر تشغيل هذه القناة.";
+}
+(function(){
+  const v=els.video;
+  v.addEventListener("error",()=>{
+    const e=v.error; dbg("video.error: code="+(e&&e.code)+" "+(e&&e.message||""));
+    if(playerOn()) reconnect("video-error");
+  });
+  v.addEventListener("ended",()=>{ if(playerOn()){ dbg("video: ended"); reconnect("ended"); } });
+  v.addEventListener("playing",()=>{ retry=0; lastMove=Date.now(); if(playerOn()) els.perr.textContent=""; });
+  window.addEventListener("online",()=>{ if(playerOn()&&curCh){ dbg("عاد الاتصال بالإنترنت"); clearTimeout(rTimer); rTimer=null; retry=0; startStream(); } });
+})();
+function closePlayer(){
+  sid++; curCh=null; stopWatch();
+  els.player.classList.remove("on"); destroyEngines();
+  els.video.pause(); els.video.removeAttribute("src"); els.video.load();
+  els.perr.textContent="";
+  if(lastFocus&&document.contains(lastFocus)) lastFocus.focus();
+}
+$("pclose").onclick=closePlayer;
+
+/* ============ البحث والتحديث ============ */
+let st; els.search.addEventListener("input",()=>{clearTimeout(st);st=setTimeout(()=>{S.query=els.search.value.trim();if(S.activeId)applyFilter();},150);});
+$("refresh").onclick=()=>load(true);
+if(/[?&]debug=1/.test(location.search)) $("dbg").classList.add("on");
+els.search.dataset.nav="1"; $("refresh").dataset.nav="1";
+
+/* ============ التنقل بالريموت (D-Pad) ============ */
+const isBack=e=>e.key==="Escape"||e.key==="GoBack"||e.key==="BrowserBack"||e.keyCode===4||e.keyCode===10009||e.keyCode===27;
+function navigate(dir){
+  const cur=document.activeElement;
+  const pool=[...document.querySelectorAll('[data-nav="1"]')].filter(x=>x.offsetParent!==null);
+  if(!cur||!pool.includes(cur)){ (els.grid.querySelector(".card")||pool[0])?.focus(); return; }
+  const a=cur.getBoundingClientRect(), ax=a.left+a.width/2, ay=a.top+a.height/2;
+  let best=null,bs=1e9;
+  for(const el of pool){
+    if(el===cur) continue;
+    const b=el.getBoundingClientRect(), bx=b.left+b.width/2, by=b.top+b.height/2, dx=bx-ax, dy=by-ay;
+    let ok,prim,sec;
+    if(dir==="left"){ok=dx<-4;prim=-dx;sec=Math.abs(dy);}
+    else if(dir==="right"){ok=dx>4;prim=dx;sec=Math.abs(dy);}
+    else if(dir==="up"){ok=dy<-4;prim=-dy;sec=Math.abs(dx);}
+    else{ok=dy>4;prim=dy;sec=Math.abs(dx);}
+    if(!ok) continue;
+    const s=prim+sec*3; if(s<bs){bs=s;best=el;}
+  }
+  if(best){best.focus({preventScroll:true});best.scrollIntoView({block:"nearest",inline:"nearest"});}
+  else if(dir==="down") renderMore();
+}
+document.addEventListener("keydown",e=>{
+  if(els.player.classList.contains("on")){
+    if(isBack(e)||e.key==="Backspace"){e.preventDefault();closePlayer();}
+    return;
+  }
+  const typing=document.activeElement===els.search;
+  const map={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"};
+  if(map[e.key]){
+    if(typing&&(e.key==="ArrowLeft"||e.key==="ArrowRight")) return; // تحريك المؤشر داخل النص
+    e.preventDefault(); navigate(map[e.key]); return;
+  }
+  if(e.key==="Enter"){
+    const t=document.activeElement;
+    if(t&&t.tagName!=="INPUT"&&t.tagName!=="BUTTON"&&t.click) {e.preventDefault();t.click();}
+    return;
+  }
+  if(isBack(e)){
+    if(typing&&els.search.value){els.search.value="";S.query="";applyFilter();e.preventDefault();return;}
+    if(typing){els.grid.querySelector(".card")?.focus();e.preventDefault();return;}
+    const active=els.cats.querySelector(".cat.active");
+    if(document.activeElement?.closest("#content")&&active){active.focus();e.preventDefault();}
+  }
+});
+
+load(false);
+})();
+</script>
+</body>
+</html>
