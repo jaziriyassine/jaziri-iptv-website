@@ -71,7 +71,7 @@ footer a{color:var(--blue2)}
       <div id="grid"></div>
       <div id="sentinel" style="height:1px"></div>
       <footer>
-        <p>هذا الموقع لا يستضيف أي بث، ويعرض روابط قنوات متاحة مجانًا من أصحابها.</p>
+        <p>هذا الموقع لا يستضيف أي بث، ويعرض روابط قنوات متاحة مجانًا من أصحابها[cite: 1].</p>
         <a href="privacy.html">سياسة الخصوصية</a>
       </footer>
     </section>
@@ -88,9 +88,9 @@ footer a{color:var(--blue2)}
 <script>
 (()=>{
 "use strict";
-/* ============ الإعدادات (قراءة فقط من Firebase) ============ */
+/* ============ الإعدادات (قراءة فقط من Firebase) ============[cite: 1] */
 const DB = "https://jaziri-s-iptv-default-rtdb.europe-west1.firebasedatabase.app";
-/* ====== إعدادات AdSense: ضع معرّف الناشر ومعرّف وحدة الإعلان بعد قبول حسابك ====== */
+/* ====== إعدادات AdSense: ضع معرّف الناشر ومعرّف وحدة الإعلان بعد قبول حسابك ======[cite: 1] */
 const ADS = {client:"ca-pub-XXXXXXXXXXXXXXXX", slot:"XXXXXXXXXX", every:3};
 const adsOn = !/X{6,}/.test(ADS.client+ADS.slot);
 const CACHE_KEY = "iptv_cache_v3", CACHE_TTL = 30*60*1000, BATCH = 60, PREVIEW = 20, SEC_BATCH = 5;
@@ -101,7 +101,7 @@ const els = {cats:$("cats"),grid:$("grid"),state:$("state"),info:$("info"),searc
 
 const S = {cats:[],byCat:{},activeId:null,query:"",list:[],shown:0};
 
-/* ============ الإعلانات ============ */
+/* ============ الإعلانات ============[cite: 1] */
 if(adsOn){const sc=document.createElement("script");sc.async=true;sc.crossOrigin="anonymous";
   sc.src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client="+encodeURIComponent(ADS.client);document.head.appendChild(sc);}
 function makeAd(){
@@ -118,7 +118,7 @@ function initAds(){
 }
 function placeTopAd(){ const t=$("adtop"); if(adsOn&&!t.firstChild){t.appendChild(makeAd());initAds();} }
 
-/* ============ جلب البيانات ============ */
+/* ============ جلب البيانات ============[cite: 1] */
 const dbgLines=[];
 function dbg(m){dbgLines.push(m);console.log("[iptv]",m);const p=document.getElementById("dbg");if(p)p.textContent=dbgLines.join("\n");}
 const getJSON=path=>getURL(`${DB}/${path}.json`);
@@ -146,7 +146,6 @@ function report(rawCats,missing){
 }
 const str = v => (v==null?"":String(v)).trim();
 
-/* categories قد تكون كائنًا {id:{...}} أو {id:"اسم"} أو مصفوفة (Firebase يحوّل المفاتيح المتسلسلة لمصفوفة) */
 function normCategories(raw){
   const out=[];
   if(!raw) return out;
@@ -158,7 +157,7 @@ function normCategories(raw){
       id = str(v.category_id ?? v.id ?? v.i ?? key);
       name = str(v.category_name ?? v.name ?? v.n ?? v.title);
     } else name = str(v);
-    name = name.trim(); // نحافظ على اسم التصنيف كما هو من Firebase
+    name = name.trim();
     out.push({id, name: name || ("صنف "+id)});
   }
   return out;
@@ -186,7 +185,7 @@ function readCache(){
   return null;
 }
 function writeCache(rawCats,rawCh){
-  try{localStorage.setItem(CACHE_KEY,JSON.stringify({t:Date.now(),cats:rawCats,ch:rawCh}));}catch(e){/* الحجم كبير: نتجاهل */}
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify({t:Date.now(),cats:rawCats,ch:rawCh}));}catch(e){}
 }
 
 async function load(force){
@@ -208,15 +207,12 @@ async function load(force){
 }
 function ingest(rawCats,rawCh){
   S.byCat = normChannels(rawCh);
-  // لا نحذف أي قناة بسبب بروتوكول رابط البث.
-  // قد يمنع المتصفح تشغيل HTTP داخل صفحة HTTPS، لكن القناة تبقى ظاهرة.
   const httpCount = Object.values(S.byCat).reduce(
     (total, channels) => total + channels.filter(ch => /^http:\/\//i.test(ch.url)).length,
     0
   );
   if(httpCount) dbg(`ℹ توجد ${httpCount} قناة برابط HTTP؛ ستبقى ظاهرة وقد يمنع المتصفح تشغيلها داخل HTTPS.`);
   let cats = normCategories(rawCats);
-  // أصناف موجودة في القنوات وغير معرّفة في categories: نعرضها باسم احتياطي
   const known = new Set(cats.map(x=>x.id));
   const missing=[];
   for(const id of Object.keys(S.byCat)) if(!known.has(id)){ cats.push({id,name:"صنف "+id}); missing.push(id); }
@@ -230,7 +226,6 @@ function ingest(rawCats,rawCh){
   placeTopAd();
 }
 
-/* ============ العرض ============ */
 function showState(kind,msg){
   const s=els.state; s.className=kind==="err"?"err":"";
   if(kind==="hide"){s.style.display="none";s.innerHTML="";return;}
@@ -334,126 +329,147 @@ function makeCard(ch){
     if(sec ? ch.length-Array.prototype.indexOf.call(ch,sec)<=2 : (d.parentNode===els.grid && ch.length-Array.prototype.indexOf.call(ch,d)<=12)) renderMore(); };
   return d;
 }
-// تحميل المزيد عند التمرير
 new IntersectionObserver(e=>{if(e[0].isIntersecting)renderMore();},{rootMargin:"600px"}).observe(els.sentinel);
-/* ============ التشغيل (مع إعادة اتصال تلقائية عند الانقطاع) ============ */
+
+/* ============ التشغيل ============[cite: 1] */
 function toast(m){els.toast.textContent=m;els.toast.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>els.toast.style.display="none",2800);}
 let hls=null, mpegts=null, lastFocus=null, curUrl="";
-let curCh=null, sid=0, retry=0, rTimer=null, wdog=null, lastT=-1, lastMove=0, mediaRecAt=0;
-const RETRY_DELAYS=[300,1000,2000,4000,8000]; // أول محاولة شبه فورية ثم تباعد تدريجي
-const HARD_MAX=5;      // أخطاء 401/403/404: نحاول 5 مرات فقط
-const STALL_MS=8000;   // تجمّد الصورة أكثر من 8 ثوانٍ = انقطاع
+let retryTimer=null, retryCount=0, playbackGeneration=0, retryBusy=false;
+const RETRY_DELAYS=[500, 1000, 2000, 4000, 8000]; // تعديل أوقات إعادة المحاولة لتصبح أهدأ على السيرفر
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
-function destroyEngines(){ if(hls){hls.destroy();hls=null;} if(mpegts){try{mpegts.destroy();}catch(e){}mpegts=null;} }
-const playerOn=()=>els.player.classList.contains("on");
-
-function stopWatch(){ clearTimeout(rTimer); rTimer=null; clearInterval(wdog); wdog=null; }
-function startWatch(){
-  clearInterval(wdog); lastT=-1; lastMove=Date.now();
-  wdog=setInterval(()=>{
-    if(!playerOn()||rTimer) return;
-    const v=els.video;
-    if(v.paused&&!v.ended) { lastMove=Date.now(); return; } // المستخدم أوقفه يدويًا
-    if(v.currentTime!==lastT){ lastT=v.currentTime; lastMove=Date.now(); return; }
-    if(Date.now()-lastMove>STALL_MS){ dbg("watchdog: تجمّد البث"); reconnect("stall"); }
-  },2000);
+function clearRetry(){if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}}
+function destroyEngines(){clearRetry();if(hls){hls.destroy();hls=null;}if(mpegts){try{mpegts.destroy();}catch(e){}mpegts=null;}retryBusy=false;}
+function scheduleRetry(reason, generation=playbackGeneration){
+  if(generation!==playbackGeneration || !els.player.classList.contains("on") || retryTimer || retryBusy) return;
+  const delay=RETRY_DELAYS[Math.min(retryCount,RETRY_DELAYS.length-1)];
+  retryCount++;
+  els.perr.textContent=`انقطع البث؛ إعادة الاتصال خلال ${delay<1000?delay+" مللي ثانية":(delay/1000)+" ثانية"}...`;
+  dbg(`إعادة محاولة البث #${retryCount} بعد ${delay}ms — ${reason}`);
+  retryTimer=setTimeout(()=>{retryTimer=null;retryStream(generation);},delay);
 }
-function reconnect(reason,code){
-  if(!playerOn()||!curCh||rTimer) return;
-  const hard=code===401||code===403||code===404;
-  if(hard&&retry>=HARD_MAX){ stopWatch(); els.perr.textContent=hint("networkError",code); return; }
-  const d=RETRY_DELAYS[Math.min(retry,RETRY_DELAYS.length-1)];
-  retry++;
-  dbg(`إعادة اتصال #${retry} بعد ${d}ms (${reason}${code?" / HTTP "+code:""})`);
-  els.perr.textContent=`انقطع البث — جارٍ إعادة الاتصال (محاولة ${retry})...`;
-  rTimer=setTimeout(()=>{rTimer=null; if(playerOn()) startStream();},d);
-}
-
-async function startStream(){
-  const my=++sid, ch=curCh, v=els.video, u=ch.url;
-  destroyEngines(); v.removeAttribute("src"); v.load();
+async function retryStream(generation=playbackGeneration){
+  if(generation!==playbackGeneration || retryBusy || !curUrl) return;
+  retryBusy=true;
+  const v=els.video;
   try{
-    const isHls=/\.m3u8(\?|$)/i.test(u);
-    if(isHls){
-      if(v.canPlayType("application/vnd.apple.mpegurl")){ v.src=u; }
-      else{
-        if(!window.Hls) await loadScript("https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js");
-        if(my!==sid||!playerOn()) return;
-        hls=new Hls({manifestLoadingMaxRetry:2,levelLoadingMaxRetry:2,fragLoadingMaxRetry:2});
-        hls.loadSource(u); hls.attachMedia(v);
-        hls.on(Hls.Events.ERROR,(_,d)=>{
-          if(my!==sid) return;
-          const code=d.response&&d.response.code;
-          dbg(`hls: ${d.type} / ${d.details}${code?" / HTTP "+code:""}${d.fatal?" (قاتل)":""}`);
-          if(!d.fatal) return;
-          if(d.type===Hls.ErrorTypes.MEDIA_ERROR && Date.now()-mediaRecAt>5000){ mediaRecAt=Date.now(); hls.recoverMediaError(); return; }
-          reconnect(d.type,code);
-        });
-      }
-    }else if(/\.(mp4|webm)(\?|$)/i.test(u)){ v.src=u; }
-    else{ // روابط Xtream بدون امتداد = MPEG-TS
-      if(!window.mpegts) await loadScript("https://cdn.jsdelivr.net/npm/mpegts.js@1/dist/mpegts.min.js");
-      if(my!==sid||!playerOn()) return;
-      if(mpegts_ok()){ mpegts=mpegts_create(u,v,my); }
-      else v.src=u;
+    if(hls && window.Hls){
+      if(retryCount<=2){hls.startLoad(-1);}
+      else{hls.destroy();hls=null;await startCurrentStream(generation);}
+    }else if(mpegts && window.mpegts){
+      try{mpegts.pause();mpegts.unload();mpegts.detachMediaElement();mpegts.destroy();}catch(e){}
+      mpegts=null;
+      await startCurrentStream(generation);
+    }else{
+      await startCurrentStream(generation);
     }
-    v.play().catch(()=>{});
-  }catch(e){ if(my===sid) reconnect("load-failed"); }
+    if(generation===playbackGeneration){v.play().catch(()=>{});els.perr.textContent="جاري استعادة البث...";}
+  }catch(e){dbg("فشلت إعادة المحاولة: "+(e.message||e));retryBusy=false;scheduleRetry("retry failed",generation);}
+  finally{retryBusy=false;}
 }
-
+async function startCurrentStream(generation=playbackGeneration){
+  if(generation!==playbackGeneration || !els.player.classList.contains("on")) return;
+  const v=els.video,u=curUrl,isHls=/\.m3u8(\?|$)/i.test(u);
+  if(isHls){
+    if(v.canPlayType("application/vnd.apple.mpegurl")){
+      v.src=u;v.load();
+    }else{
+      if(!window.Hls) await loadScript("https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js");
+      if(generation!==playbackGeneration)return;
+      hls=new Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:30,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6});
+      hls.on(Hls.Events.ERROR,(_,d)=>{
+        if(generation!==playbackGeneration)return;
+        const code=d.response&&d.response.code;
+        dbg(`hls: ${d.type} / ${d.details}${code?" / HTTP "+code:""}${d.fatal?" (قاتل)":""}`);
+        if(d.fatal){
+          if(d.type==="mediaError"){try{hls.recoverMediaError();}catch(e){scheduleRetry("HLS media error",generation);}}
+          else scheduleRetry("HLS "+d.type+" "+(code||""),generation);
+        }
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(generation===playbackGeneration)v.play().catch(()=>{});});
+      hls.loadSource(u);hls.attachMedia(v);
+    }
+  }else if(/\.(mp4|webm)(\?|$)/i.test(u)){v.src=u;v.load();}
+  else{
+    if(!window.mpegts)await loadScript("https://cdn.jsdelivr.net/npm/mpegts.js@1/dist/mpegts.min.js");
+    if(generation!==playbackGeneration)return;
+    if(mpegts_ok())mpegts=mpegts_create(u,v,generation);
+    else{
+      const features=window.mpegts&&window.mpegts.getFeatureList?window.mpegts.getFeatureList():{};
+      dbg("MPEG-TS غير مدعوم عبر MSE في هذا المتصفح: "+JSON.stringify(features));
+      throw new Error("المتصفح لا يدعم تشغيل MPEG-TS عبر MediaSource");
+    }
+  }
+}
 async function play(ch){
   if(!ch.url){toast("لا يوجد رابط بث لهذه القناة.");return;}
-  // إذا كان في مشروعك مشغّل موجود، عرّف window.IPTV_PLAY = (url, name, channel) => {...} وسيُستخدم بدل المشغّل المدمج.
-  if(typeof window.IPTV_PLAY==="function"){ window.IPTV_PLAY(ch.url,ch.name,ch); return; }
+  if(typeof window.IPTV_PLAY==="function"){window.IPTV_PLAY(ch.url,ch.name,ch);return;}
   lastFocus=document.activeElement;
-  curUrl=ch.url; curCh=ch; retry=0; stopWatch();
+  playbackGeneration++;const generation=playbackGeneration;
+  retryCount=0;retryBusy=false;clearRetry();curUrl=ch.url;
   dbg(`تشغيل: ${ch.name} ← ${safeUrl(ch.url)} | الصفحة: ${location.protocol}`);
-  els.pname.textContent=ch.name; els.perr.textContent="";
-  els.player.classList.add("on"); $("pclose").focus();
-  startWatch(); startStream();
+  if(location.protocol==="https:"&&/^http:\/\//i.test(ch.url)){
+    dbg("تنبيه: رابط HTTP داخل صفحة HTTPS؛ Chrome قد يحظره أو يرقّيه إلى HTTPS تلقائيًا.");
+  }
+  els.pname.textContent=ch.name;els.perr.textContent="";
+  els.player.classList.add("on");$("pclose").focus();
+  destroyEngines();const v=els.video;v.pause();v.removeAttribute("src");v.load();
+  try{await startCurrentStream(generation);if(generation===playbackGeneration)v.play().catch(()=>{});}
+  catch(e){els.perr.textContent="تعذّر تشغيل القناة؛ ستتم إعادة المحاولة.";scheduleRetry("initial start failed",generation);}
 }
 const mpegts_ok=()=>window.mpegts&&window.mpegts.getFeatureList().mseLivePlayback;
-function mpegts_create(u,v,my){const p=window.mpegts.createPlayer({type:"mpegts",isLive:true,url:u});p.attachMediaElement(v);p.load();
-  const E=window.mpegts.Events;
-  p.on(E.ERROR,(t,d,info)=>{ if(my!==sid) return; dbg(`mpegts: ${t}/${d}`); reconnect("mpegts",info&&info.code); });
-  p.on(E.LOADING_COMPLETE,()=>{ if(my===sid){ dbg("mpegts: أُغلق الاتصال من السيرفر"); reconnect("closed"); } });
-  return p;}
-function hint(type,code){
-  if(code===401||code===403) return `السيرفر رفض الطلب (HTTP ${code}): الاشتراك منتهٍ أو بيانات الدخول مرفوضة أو الحساب محظور.`;
-  if(code===404) return "القناة غير موجودة على السيرفر (HTTP 404).";
-  if(type==="networkError"){
-    const mixed=location.protocol==="https:"&&/^http:/i.test(curUrl);
-    return mixed ? "المتصفح يحظر الرابط (http) داخل صفحة https. شغّل الصفحة من http أو من ملف محلي."
-      : "تعذّر الاتصال بالبث: غالبًا السيرفر لا يسمح للمتصفح (CORS) أو الاشتراك/السيرفر متوقف. جرّب «📋 نسخ الرابط» وافتحه في VLC.";
-  }
-  return "تعذّر تشغيل هذه القناة.";
-}
-(function(){
-  const v=els.video;
-  v.addEventListener("error",()=>{
-    const e=v.error; dbg("video.error: code="+(e&&e.code)+" "+(e&&e.message||""));
-    if(playerOn()) reconnect("video-error");
+function mpegts_create(u,v,generation=playbackGeneration){
+  const p=window.mpegts.createPlayer({
+    type:"mpegts",isLive:true,url:u,
+    enableStashBuffer:true,stashInitialSize:512*1024, // زيادة المخزن المؤقت الأولي لمنع الانقطاع السريع
+    lazyLoad:false,liveBufferLatencyChasing:false,    // إيقاف مطاردة التأخير العدوانية لتفادي الإعادة المستمرة
+    liveBufferLatencyMaxLatency:6,liveBufferLatencyMinRemain:1.5
   });
-  v.addEventListener("ended",()=>{ if(playerOn()){ dbg("video: ended"); reconnect("ended"); } });
-  v.addEventListener("playing",()=>{ retry=0; lastMove=Date.now(); if(playerOn()) els.perr.textContent=""; });
-  window.addEventListener("online",()=>{ if(playerOn()&&curCh){ dbg("عاد الاتصال بالإنترنت"); clearTimeout(rTimer); rTimer=null; retry=0; startStream(); } });
-})();
+  p.on(window.mpegts.Events.ERROR,(type,detail,info)=>{
+    if(generation!==playbackGeneration)return;
+    if(type === "network" && detail === "NetworkTimeout") return; // تجاهل التايم آوت الشبكي البسيط
+    dbg(`mpegts.error: ${type||"?"} / ${detail||"?"} / ${info?JSON.stringify(info):""}`);
+    scheduleRetry("MPEG-TS "+(type||"")+" "+(detail||""),generation);
+  });
+  p.attachMediaElement(v);p.load();
+  return p;
+}
+v_error();
+function v_error(){
+  els.video.addEventListener("error",()=>{
+    const e=els.video.error;dbg("video.error: code="+(e&&e.code)+" "+(e&&e.message||""));
+    if(els.player.classList.contains("on")){
+      const isHttpOnHttps=location.protocol==="https:"&&/^http:\/\//i.test(curUrl);
+      if(isHttpOnHttps)els.perr.textContent="Chrome قد يحظر رابط HTTP داخل صفحة HTTPS. يلزم مصدر HTTPS أو خادم وسيط؛ إعادة المحاولة وحدها لن تتجاوز الحظر.";
+      else els.perr.textContent="تعذّر تحليل تدفق الفيديو؛ تحقق من صيغة البث أو دعم السيرفر للمتصفح.";
+      scheduleRetry("video error "+(e&&e.code));
+    }
+  });
+  ["stalled","ended","abort"].forEach(name=>els.video.addEventListener(name,()=>{
+    if(els.player.classList.contains("on"))scheduleRetry("video "+name);
+  }));
+  let lastTime=0,stuckSince=0;
+  setInterval(()=>{
+    const v=els.video;
+    if(!els.player.classList.contains("on")||v.paused||v.readyState<2){lastTime=v.currentTime||0;stuckSince=0;return;}
+    if(Math.abs(v.currentTime-lastTime)<0.1){
+      if(!stuckSince)stuckSince=Date.now();
+      else if(Date.now()-stuckSince>5000){stuckSince=Date.now();scheduleRetry("playback stalled");} // رفع المهلة إلى 5 ثوانٍ لتجنب إعادة التشغيل الوهمي
+    }else stuckSince=0;
+    lastTime=v.currentTime;
+  }, 1500); // زيادة الفحص إلى كل 1.5 ثانية بدل 750ms
+}
 function closePlayer(){
-  sid++; curCh=null; stopWatch();
-  els.player.classList.remove("on"); destroyEngines();
-  els.video.pause(); els.video.removeAttribute("src"); els.video.load();
-  els.perr.textContent="";
-  if(lastFocus&&document.contains(lastFocus)) lastFocus.focus();
+  playbackGeneration++;els.player.classList.remove("on");destroyEngines();
+  els.video.pause();els.video.removeAttribute("src");els.video.load();curUrl="";retryCount=0;
+  if(lastFocus&&document.contains(lastFocus))lastFocus.focus();
 }
 $("pclose").onclick=closePlayer;
 
-/* ============ البحث والتحديث ============ */
 let st; els.search.addEventListener("input",()=>{clearTimeout(st);st=setTimeout(()=>{S.query=els.search.value.trim();if(S.activeId)applyFilter();},150);});
 $("refresh").onclick=()=>load(true);
 if(/[?&]debug=1/.test(location.search)) $("dbg").classList.add("on");
 els.search.dataset.nav="1"; $("refresh").dataset.nav="1";
 
-/* ============ التنقل بالريموت (D-Pad) ============ */
 const isBack=e=>e.key==="Escape"||e.key==="GoBack"||e.key==="BrowserBack"||e.keyCode===4||e.keyCode===10009||e.keyCode===27;
 function navigate(dir){
   const cur=document.activeElement;
@@ -483,7 +499,7 @@ document.addEventListener("keydown",e=>{
   const typing=document.activeElement===els.search;
   const map={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down"};
   if(map[e.key]){
-    if(typing&&(e.key==="ArrowLeft"||e.key==="ArrowRight")) return; // تحريك المؤشر داخل النص
+    if(typing&&(e.key==="ArrowLeft"||e.key==="ArrowRight")) return;
     e.preventDefault(); navigate(map[e.key]); return;
   }
   if(e.key==="Enter"){
